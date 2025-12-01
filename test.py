@@ -22,7 +22,7 @@ class QwenPredictor:
             base_model_path,
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch.float16
+            dtype=torch.float16
         )
         # 加载 LoRA
         self.model = PeftModel.from_pretrained(model, adapter_path)
@@ -55,7 +55,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', default='mt5', choices=['mt5', 'qwen'])
     parser.add_argument('--model_path', required=True, help='模型路径 (MT5是目录, Qwen是LoRA目录)')
-    parser.add_argument('--base_model', default="Qwen/Qwen2.5-7B-Instruct", help='Qwen基座模型')
+    parser.add_argument('--base_model', default="Qwen/Qwen3-4B-Instruct-2507", help='Qwen基座模型')
     parser.add_argument('--text', help='测试文本')
     parser.add_argument('--direction', default='zh2ja')
     
