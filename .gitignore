@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Models & Checkpoints
+models/nllb-200-distilled-600M/
+checkpoints/
+mt5_finetuned/
+qwen_finetuned/
+nllb_finetuned/
+*.pt
+*.bin
+*.safetensors
+
+# Datasets (IMPORTANT: protect your data)
+datasets/*.json
+datasets/*.csv
+
+# Logs & Visualizations
+training_logs/
+*.log
+*.png
+*.jpg
+results.json
+
+# Environment
+.env
+.venv
+env/
+venv/
+.idea/
+.vscode/
+.cursor/
+
+# System
+.DS_Store
+

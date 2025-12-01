@@ -1,0 +1,75 @@
+Traceback (most recent call last):
+  File "/home/hao/law_translation_project/finetune_mt/train.py", line 11, in <module>
+    from models.mt5 import MT5Trainer
+  File "/home/hao/law_translation_project/finetune_mt/models/mt5.py", line 7, in <module>
+    from transformers import (
+  File "<frozen importlib._bootstrap>", line 1229, in _handle_fromlist
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/utils/import_utils.py", line 2317, in __getattr__
+    module = self._get_module(self._class_to_module[name])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/utils/import_utils.py", line 2345, in _get_module
+    return importlib.import_module("." + module_name, self.__name__)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/models/mt5/modeling_mt5.py", line 29, in <module>
+    from ...generation import GenerationMixin
+  File "<frozen importlib._bootstrap>", line 1229, in _handle_fromlist
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/utils/import_utils.py", line 2317, in __getattr__
+    module = self._get_module(self._class_to_module[name])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/utils/import_utils.py", line 2345, in _get_module
+    return importlib.import_module("." + module_name, self.__name__)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/generation/utils.py", line 43, in <module>
+    from ..masking_utils import create_masks_for_generate
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/transformers/masking_utils.py", line 40, in <module>
+    from torch._dynamo._trace_wrapped_higher_order_op import TransformGetItemToIndex
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/__init__.py", line 13, in <module>
+    from . import (
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/aot_compile.py", line 15, in <module>
+    from . import convert_frame
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/convert_frame.py", line 57, in <module>
+    from torch._dynamo.symbolic_convert import TensorifyState
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/symbolic_convert.py", line 53, in <module>
+    from torch._dynamo.exc import ObservedException, TensorifyScalarRestartAnalysis
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/exc.py", line 45, in <module>
+    from .utils import counters
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/_dynamo/utils.py", line 2414, in <module>
+    if has_triton_package():
+       ^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/torch/utils/_triton.py", line 9, in has_triton_package
+    import triton  # noqa: F401
+    ^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/__init__.py", line 26, in <module>
+    from . import language
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/language/__init__.py", line 6, in <module>
+    from .standard import (
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/language/standard.py", line 364, in <module>
+    @jit
+     ^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/runtime/jit.py", line 947, in jit
+    return decorator(fn)
+           ^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/runtime/jit.py", line 935, in decorator
+    return JITFunction(
+           ^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/runtime/jit.py", line 769, in __init__
+    super().__init__(fn)
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/site-packages/triton/runtime/jit.py", line 503, in __init__
+    self.raw_src, self.starting_line_number = inspect.getsourcelines(fn)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/inspect.py", line 1250, in getsourcelines
+    return getblock(lines[lnum:]), lnum + 1
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/inspect.py", line 1225, in getblock
+    for _token in tokens:
+  File "/home/hao/miniconda3/envs/autogen/lib/python3.11/tokenize.py", line 529, in _tokenize
+    pseudomatch = _compile(PseudoToken).match(line, pos)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+[W1201 14:45:19.368467627 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
