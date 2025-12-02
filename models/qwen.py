@@ -37,32 +37,40 @@ class QwenDataset(Dataset):
         target = item['target']
         
         # 构建 Prompt
-        # Qwen3/2.5 推荐使用 ChatML 格式或 apply_chat_template
-        # 这里我们手动构建 system/user/assistant 消息
-        
         target_lang_name = "Japanese" if "ja" in self.lang_pair else "English"
         if self.lang_pair == "ja-zh" or self.lang_pair == "en-zh":
              target_lang_name = "Chinese"
              
         instruction = f"Please translate the following text into {target_lang_name}."
         
-        messages = [
+        # 分别构建 prompt 部分和 response 部分
+        messages_prompt = [
             {"role": "system", "content": "You are a professional legal translator."},
-            {"role": "user", "content": f"{instruction}\n\n{source}"},
-            {"role": "assistant", "content": target}
+            {"role": "user", "content": f"{instruction}\n\n{source}"}
         ]
         
-        # 使用 tokenizer 的模板应用功能
-        # 记得 Qwen 的 chat template 会自动处理特殊 token
-        text = self.tokenizer.apply_chat_template(
-            messages,
+        # 获取 prompt 部分（不含 assistant 回复）
+        prompt_text = self.tokenizer.apply_chat_template(
+            messages_prompt,
+            tokenize=False,
+            add_generation_prompt=True  # 添加 assistant 开始标记
+        )
+        
+        # 完整文本（含 assistant 回复）
+        messages_full = messages_prompt + [{"role": "assistant", "content": target}]
+        full_text = self.tokenizer.apply_chat_template(
+            messages_full,
             tokenize=False,
             add_generation_prompt=False
         )
         
-        # 编码 - 不使用 return_tensors，让 DataCollator 统一处理
+        # 编码 prompt 以获取长度
+        prompt_ids = self.tokenizer(prompt_text, add_special_tokens=False).input_ids
+        prompt_len = len(prompt_ids)
+        
+        # 编码完整文本
         encoding = self.tokenizer(
-            text,
+            full_text,
             max_length=self.max_length,
             padding="max_length",
             truncation=True
@@ -70,7 +78,17 @@ class QwenDataset(Dataset):
         
         input_ids = encoding.input_ids
         attention_mask = encoding.attention_mask
-        labels = input_ids.copy()  # 复制作为 labels
+        
+        # 关键：只对 assistant 回复部分计算 loss，prompt 部分设为 -100
+        labels = input_ids.copy()
+        for i in range(min(prompt_len, len(labels))):
+            labels[i] = -100  # 忽略 prompt 部分的 loss
+        
+        # padding 部分也设为 -100
+        pad_token_id = self.tokenizer.pad_token_id
+        for i in range(len(labels)):
+            if input_ids[i] == pad_token_id:
+                labels[i] = -100
         
         return {
             "input_ids": input_ids,
@@ -110,15 +128,18 @@ class QwenTrainer:
             trust_remote_code=True
         )
         
-        # 配置 LoRA - Qwen3 的 target_modules
+        # 配置 LoRA - Qwen3 的 target_modules（增强版）
         print("配置 LoRA...")
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
-            r=8,
+            r=16,  # 增加秩，提升表达能力
             lora_alpha=32,
-            lora_dropout=0.1,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],  # Qwen3 注意力层
+            lora_dropout=0.05,
+            target_modules=[
+                "q_proj", "k_proj", "v_proj", "o_proj",  # 注意力层
+                "gate_proj", "up_proj", "down_proj"      # MLP 层（翻译任务重要）
+            ],
             bias="none"
         )
         

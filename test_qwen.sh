@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python evaluate.py --model_type qwen   --test_json datasets/my_test_en.json --model_path checkpoints/qwen3_4b_zh2en/qwen/checkpoint-1780 --max_length 512 --batch_size 16

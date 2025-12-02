@@ -77,6 +77,9 @@ def evaluate_model(args):
         
         # 加载 tokenizer
         tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.padding_side = "left"  # 生成时左填充
         
         # 加载基座模型
         model = AutoModelForCausalLM.from_pretrained(
@@ -100,42 +103,69 @@ def evaluate_model(args):
         predictions = []
         references = []
         
-        print(f"Evaluating on {len(test_df)} samples...")
-        for idx, row in tqdm(test_df.iterrows(), total=len(test_df)):
+        # 预处理所有 prompts
+        all_prompts = []
+        all_references = []
+        instruction = f"Please translate the following text into {target_lang_name}."
+        
+        for idx, row in test_df.iterrows():
             source = row['chinese']
-            reference = row['japanese']  # 这里其实是 target，字段名是历史遗留
+            reference = row['japanese']
             
-            # 构建 prompt
-            instruction = f"Please translate the following text into {target_lang_name}."
             messages = [
                 {"role": "system", "content": "You are a professional legal translator."},
                 {"role": "user", "content": f"{instruction}\n\n{source}"}
             ]
             text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            all_prompts.append(text)
+            all_references.append(reference)
+        
+        # 批量处理
+        batch_size = args.batch_size
+        num_batches = (len(all_prompts) + batch_size - 1) // batch_size
+        
+        print(f"Evaluating on {len(test_df)} samples with batch_size={batch_size}...")
+        
+        for batch_idx in tqdm(range(num_batches), desc="Batches"):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, len(all_prompts))
+            batch_prompts = all_prompts[start_idx:end_idx]
             
-            inputs = tokenizer([text], return_tensors="pt").to(model.device)
+            # 批量编码
+            inputs = tokenizer(
+                batch_prompts, 
+                return_tensors="pt", 
+                padding=True,
+                truncation=True,
+                max_length=args.max_length
+            ).to(model.device)
             
             with torch.no_grad():
                 generated_ids = model.generate(
                     inputs.input_ids,
+                    attention_mask=inputs.attention_mask,
                     max_new_tokens=args.max_length,
                     do_sample=False,
                     pad_token_id=tokenizer.pad_token_id
                 )
             
-            # 只取生成的部分
-            generated_ids = generated_ids[0][inputs.input_ids.shape[1]:]
-            prediction = tokenizer.decode(generated_ids, skip_special_tokens=True)
-            
-            predictions.append(prediction)
-            references.append(reference)
-            
-            # 打印前几个样本
-            if idx < 3:
-                print(f"\n[Sample {idx+1}]")
-                print(f"Source: {source[:100]}...")
-                print(f"Reference: {reference[:100]}...")
-                print(f"Prediction: {prediction[:100]}...")
+            # 解码每个生成结果
+            for i, (input_ids, gen_ids) in enumerate(zip(inputs.input_ids, generated_ids)):
+                # 只取生成的部分（去掉输入）
+                input_len = (input_ids != tokenizer.pad_token_id).sum().item()
+                new_tokens = gen_ids[input_len:]
+                prediction = tokenizer.decode(new_tokens, skip_special_tokens=True)
+                predictions.append(prediction)
+                
+                # 打印前几个样本
+                global_idx = start_idx + i
+                if global_idx < 3:
+                    print(f"\n[Sample {global_idx+1}]")
+                    print(f"Source: {test_df.iloc[global_idx]['chinese'][:100]}...")
+                    print(f"Reference: {all_references[global_idx][:100]}...")
+                    print(f"Prediction: {prediction[:100]}...")
+        
+        references = all_references
         
         # 计算 BLEU
         bleu = sacrebleu.corpus_bleu(predictions, [references])
@@ -150,6 +180,7 @@ def main():
     parser.add_argument('--test_json', required=True, help='Path to test dataset json')
     parser.add_argument('--lang_pair', default='zh-en', help='Language pair, e.g. zh-en, zh-ja')
     parser.add_argument('--max_length', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=8, help='Batch size for evaluation')
     parser.add_argument('--base_model', default="Qwen/Qwen3-4B-Instruct-2507", help='Base model for Qwen (required for LoRA)')
     
     args = parser.parse_args()
