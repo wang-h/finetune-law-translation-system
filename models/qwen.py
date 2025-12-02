@@ -60,28 +60,17 @@ class QwenDataset(Dataset):
             add_generation_prompt=False
         )
         
-        # 编码
+        # 编码 - 不使用 return_tensors，让 DataCollator 统一处理
         encoding = self.tokenizer(
             text,
             max_length=self.max_length,
             padding="max_length",
-            truncation=True,
-            return_tensors="pt"
+            truncation=True
         )
         
-        input_ids = encoding.input_ids[0]
-        attention_mask = encoding.attention_mask[0]
-        
-        # 制作 Labels
-        # 我们只希望计算 Assistant 回复部分的 Loss
-        # 这是一个简化的处理：直接将 input_ids 作为 labels
-        # (更严谨的做法是把 user 部分的 labels 设为 -100，这里为了代码简洁先略过，
-        #  或者使用 DataCollatorForCompletionOnlyLM，但这里我们手写 Trainer)
-        labels = input_ids.clone()
-        
-        # 简单的 Masking: 找到 assistant start token 的位置
-        # 但 Qwen 的 template 比较复杂，简单起见我们全量训练（指令微调通常也接受这样）
-        # 或者利用 tokenizer.apply_chat_template 的生成结果来做掩码
+        input_ids = encoding.input_ids
+        attention_mask = encoding.attention_mask
+        labels = input_ids.copy()  # 复制作为 labels
         
         return {
             "input_ids": input_ids,
@@ -90,7 +79,7 @@ class QwenDataset(Dataset):
         }
 
 class QwenTrainer:
-    def __init__(self, model_name="Qwen/Qwen2.5-7B-Instruct", max_length=512, **kwargs):
+    def __init__(self, model_name="Qwen/Qwen3-4B-Instruct-2507", max_length=512, **kwargs):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_name = model_name
         self.max_length = max_length
@@ -113,26 +102,15 @@ class QwenTrainer:
 
     def train(self, datasets, output_dir="./qwen_finetuned", batch_size=4, num_epochs=3, learning_rate=2e-4, **kwargs):
         
-        print("加载 Qwen 模型 (4-bit 量化以节省显存)...")
-        try:
-            from transformers import BitsAndBytesConfig
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16
-            )
-        except ImportError:
-            print("未安装 bitsandbytes，尝试全量加载（显存可能不足）")
-            bnb_config = None
-
+        print("加载 Qwen 模型 (bf16 精度)...")
         model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
-            quantization_config=bnb_config,
+            torch_dtype=torch.bfloat16,
             device_map="auto",
             trust_remote_code=True
         )
         
-        # 配置 LoRA
+        # 配置 LoRA - Qwen3 的 target_modules
         print("配置 LoRA...")
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
@@ -140,7 +118,8 @@ class QwenTrainer:
             r=8,
             lora_alpha=32,
             lora_dropout=0.1,
-            target_modules=["q_proj", "v_proj"] # Qwen 常用 LoRA 模块
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],  # Qwen3 注意力层
+            bias="none"
         )
         
         model = get_peft_model(model, peft_config)
@@ -149,11 +128,13 @@ class QwenTrainer:
         # 准备数据
         # 这里的 datasets 是从 load_data_from_json 返回的 DataFrame
         train_df = datasets['train']
+        lang_pair = datasets.get('lang_pair', 'zh-ja')  # 获取语言对
+        
         # 简单划分验证集
         train_df, val_df = train_test_split(train_df, test_size=0.1, random_state=42)
         
-        train_ds = QwenDataset(train_df, self.tokenizer, self.max_length)
-        val_ds = QwenDataset(val_df, self.tokenizer, self.max_length)
+        train_ds = QwenDataset(train_df, self.tokenizer, self.max_length, lang_pair=lang_pair)
+        val_ds = QwenDataset(val_df, self.tokenizer, self.max_length, lang_pair=lang_pair)
         
         training_args = TrainingArguments(
             output_dir=output_dir,
@@ -164,8 +145,8 @@ class QwenTrainer:
             logging_steps=10,
             save_strategy="epoch",
             eval_strategy="epoch",
-            fp16=True,
-            optim="paged_adamw_32bit"
+            bf16=True,
+            optim="adamw_torch"
         )
         
         trainer = Trainer(

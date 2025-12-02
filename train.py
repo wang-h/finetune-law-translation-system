@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--model_type', default='mt5', choices=['mt5', 'qwen', 'nllb'],
                        help='选择模型类型: mt5 (Seq2Seq), qwen (LLM) 或 nllb (Facebook)')
     parser.add_argument('--base_model', default=None,
-                       help='指定基础模型路径或名称 (例如 Qwen/Qwen2.5-7B-Instruct)')
+                       help='指定基础模型路径或名称 (例如 Qwen/Qwen3-4B-Instruct-2507)')
     
     # 数据参数
     parser.add_argument('--lang_pair', default='zh-ja', choices=['zh-ja', 'zh-en'],
@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--test_json', default=None, help='测试集JSON路径')
     
     # 训练参数
-    parser.add_argument('--batch_size', type=int, default=2, help='批次大小')
+    parser.add_argument('--batch_size', type=int, default=4, help='批次大小')
     parser.add_argument('--epochs', type=int, default=5, help='训练轮数')
     parser.add_argument('--lr', type=float, default=5e-5, help='学习率')
     parser.add_argument('--output_dir', default='./checkpoints', help='输出目录')
@@ -60,12 +60,12 @@ def main():
             print("❌ Qwen 环境未就绪，请安装 peft, bitsandbytes")
             sys.exit(1)
             
-        model_name = args.base_model or "Qwen/Qwen2.5-7B-Instruct"
-        trainer = QwenTrainer(model_name=model_name)
-        
+        model_name = args.base_model or "Qwen/Qwen3-4B-Instruct-2507"
+        trainer = QwenTrainer(model_name=model_name, max_length=args.max_length)
+
         # 加载数据
-        train_df, test_df = trainer.load_data_from_json(args.train_json, args.test_json)
-        datasets = {'train': train_df, 'test': test_df} # Qwen Trainer 内部处理划分
+        train_df, test_df = trainer.load_data_from_json(args.train_json, args.test_json, args.lang_pair)
+        datasets = {'train': train_df, 'test': test_df, 'lang_pair': args.lang_pair}
         
         # 训练
         trainer.train(
@@ -73,7 +73,7 @@ def main():
             output_dir=f"{args.output_dir}/qwen",
             batch_size=args.batch_size,
             num_epochs=args.epochs,
-            learning_rate=2e-4 # LLM LoRA 通常学习率大一点
+            learning_rate=args.lr if args.lr != 5e-5 else 2e-4  # LLM LoRA 通常学习率大一点
         )
 
     elif args.model_type == 'nllb':
