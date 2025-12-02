@@ -103,8 +103,8 @@ def average_checkpoints(folder_path, output_path, last_n=3):
 
 if __name__ == "__main__":
     # 根据你的目录结构修改
-    BASE_DIR = "/home/hao/law_translation_project/finetune_mt/checkpoints/mt5-zh2en"
-    OUTPUT_DIR = "/home/hao/law_translation_project/finetune_mt/checkpoints/mt5-zh2en-avg"
+    BASE_DIR = "/home/wanghao/finetune-law-translation-system/checkpoints/mt5_zh2en/mt5"
+    OUTPUT_DIR = "/home/wanghao/finetune-law-translation-system/checkpoints/mt5_zh2en-avg"
     
     average_checkpoints(BASE_DIR, OUTPUT_DIR, last_n=3)
 
