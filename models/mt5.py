@@ -139,19 +139,25 @@ class MT5Trainer:
         
         return train_df, test_df
         
-    def create_datasets(self, train_df, test_df, val_ratio=0.1, lang_pair='zh-ja'):
-        """创建数据集"""
-        # 简单处理：包含双向
+    def create_datasets(self, train_df, test_df, val_ratio=0.1, lang_pair='zh-ja', bidirectional=False):
+        """创建数据集
+        
+        Args:
+            bidirectional: 是否训练双向翻译，默认 False（单向）
+        """
         all_train_data = []
         all_val_data = []
         all_test_data = []
         
-        if lang_pair == 'zh-ja':
-            directions = [('zh', 'ja'), ('ja', 'zh')]
-        elif lang_pair == 'zh-en':
-            directions = [('zh', 'en'), ('en', 'zh')]
+        # 解析语言对
+        src_lang, tgt_lang = lang_pair.split('-')
+        
+        if bidirectional:
+            # 双向翻译
+            directions = [(src_lang, tgt_lang), (tgt_lang, src_lang)]
         else:
-            directions = [('zh', 'ja')] # 默认
+            # 单向翻译（默认）
+            directions = [(src_lang, tgt_lang)]
 
         for source_lang, target_lang in directions:
             # 训练集划分验证集
@@ -189,8 +195,12 @@ class MT5Trainer:
             pin_memory=True if torch.cuda.is_available() else False
         )
 
-    def compute_bleu(self, dataset, max_samples=None):
-        """计算数据集的 BLEU 分数"""
+    def compute_bleu(self, dataset, max_samples=None, target_lang='ja'):
+        """计算数据集的 BLEU 分数
+        
+        Args:
+            target_lang: 目标语言，用于选择正确的 tokenizer ('ja', 'zh', 'en')
+        """
         self.model.eval()
         
         preds = []
@@ -233,16 +243,23 @@ class MT5Trainer:
                 decoded_labels = self.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
                 labels.extend(decoded_labels)
         
-        # 计算 BLEU
-        # 对于中文/日文，使用 zh tokenizer (按字切分) 以获得更合理的 BLEU 分数
-        # 如果是纯日文目标，推荐使用 'ja-mecab'，这里为了兼容混合方向使用 'zh'
-        bleu = sacrebleu.corpus_bleu(preds, [labels], tokenize='zh')
-        print(f"BLEU: {bleu.score:.2f}")
+        # 计算 BLEU - 根据目标语言选择合适的 tokenizer
+        # 日语用 'ja-mecab'，中文用 'zh'，英语用默认 '13a'
+        if target_lang == 'ja':
+            bleu = sacrebleu.corpus_bleu(preds, [labels], tokenize='ja-mecab')
+            tokenizer_name = 'ja-mecab'
+        elif target_lang == 'zh':
+            bleu = sacrebleu.corpus_bleu(preds, [labels], tokenize='zh')
+            tokenizer_name = 'zh'
+        else:
+            bleu = sacrebleu.corpus_bleu(preds, [labels])
+            tokenizer_name = '13a'
+        print(f"BLEU: {bleu.score:.2f} (tokenize={tokenizer_name})")
         return bleu.score
 
     def train(self, datasets, output_dir="./mt5_finetuned", 
               batch_size=8, learning_rate=5e-5, num_epochs=3, 
-              gradient_accumulation_steps=4, **kwargs):
+              gradient_accumulation_steps=4, lang_pair='zh-ja', **kwargs):
         
         # ... (之前的 DataLoader 代码) ...
         train_dataloader = self.create_dataloader(datasets['train'], batch_size, shuffle=True)
@@ -295,8 +312,9 @@ class MT5Trainer:
                      self.visualizer.update_plot()
             
             # Epoch 结束：计算验证集 BLEU
+            target_lang = lang_pair.split('-')[1]  # 获取目标语言
             print(f"\nEpoch {epoch+1} 结束，评估验证集 BLEU...")
-            val_bleu = self.compute_bleu(datasets['val'], max_samples=100) # 采样 100 条快速评估
+            val_bleu = self.compute_bleu(datasets['val'], max_samples=100, target_lang=target_lang)
             print(f"Validation BLEU: {val_bleu:.2f}")
             
             # Save per epoch
@@ -306,7 +324,7 @@ class MT5Trainer:
         
         # 训练结束：计算测试集完整 BLEU
         print("\n训练完成，评估测试集完整 BLEU...")
-        test_bleu = self.compute_bleu(datasets['test'])
+        test_bleu = self.compute_bleu(datasets['test'], target_lang=target_lang)
         print(f"Test Set BLEU: {test_bleu:.2f}")
         
         return {'test_bleu': test_bleu}

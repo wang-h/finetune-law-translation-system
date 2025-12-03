@@ -10,7 +10,8 @@ from transformers import (
     AutoTokenizer,
     Trainer,
     TrainingArguments,
-    DataCollatorForSeq2Seq
+    DataCollatorForSeq2Seq,
+    TrainerCallback
 )
 from peft import (
     LoraConfig,
@@ -20,6 +21,80 @@ from peft import (
 )
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import sacrebleu
+from tqdm import tqdm
+
+
+class BLEUCallback(TrainerCallback):
+    """每个 epoch 结束后计算 BLEU 分数"""
+    
+    def __init__(self, val_df, tokenizer, lang_pair, max_length=256, sample_size=100):
+        self.val_df = val_df
+        self.tokenizer = tokenizer
+        self.lang_pair = lang_pair
+        self.max_length = max_length
+        self.sample_size = sample_size  # 采样数量，避免评估太慢
+        
+    def on_epoch_end(self, args, state, control, model=None, **kwargs):
+        if model is None:
+            return
+            
+        print(f"\n📊 Epoch {int(state.epoch)} 结束，计算 BLEU...")
+        
+        # 采样验证集
+        sample_df = self.val_df.sample(n=min(self.sample_size, len(self.val_df)), random_state=42)
+        
+        target_lang = self.lang_pair.split('-')[1] if '-' in self.lang_pair else 'en'
+        target_lang_name = {"en": "English", "ja": "Japanese", "zh": "Chinese"}.get(target_lang, "English")
+        instruction = f"Please translate the following text into {target_lang_name}."
+        
+        predictions = []
+        references = []
+        
+        model.eval()
+        for idx, row in tqdm(sample_df.iterrows(), total=len(sample_df), desc="Eval BLEU"):
+            source = row['source']
+            reference = row['target']
+            
+            messages = [
+                {"role": "system", "content": "You are a professional legal translator."},
+                {"role": "user", "content": f"{instruction}\n\n{source}"}
+            ]
+            text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            
+            inputs = self.tokenizer([text], return_tensors="pt", truncation=True, max_length=self.max_length)
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                generated_ids = model.generate(
+                    inputs['input_ids'],
+                    attention_mask=inputs['attention_mask'],
+                    max_new_tokens=self.max_length,
+                    do_sample=False,
+                    pad_token_id=self.tokenizer.pad_token_id
+                )
+            
+            # 只取生成的部分
+            new_tokens = generated_ids[0][inputs['input_ids'].shape[1]:]
+            prediction = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+            
+            predictions.append(prediction)
+            references.append(reference)
+        
+        # 计算 BLEU - 根据目标语言选择合适的 tokenizer
+        # 日语用 'ja-mecab'，中文用 'zh'，英语用默认 '13a'
+        if target_lang == 'ja':
+            bleu = sacrebleu.corpus_bleu(predictions, [references], tokenize='ja-mecab')
+            tokenizer_name = 'ja-mecab'
+        elif target_lang == 'zh':
+            bleu = sacrebleu.corpus_bleu(predictions, [references], tokenize='zh')
+            tokenizer_name = 'zh'
+        else:
+            bleu = sacrebleu.corpus_bleu(predictions, [references])
+            tokenizer_name = '13a'
+        print(f"✅ Epoch {int(state.epoch)} Validation BLEU: {bleu.score:.2f} (tokenize={tokenizer_name})")
+        
+        model.train()
 
 class QwenDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=512, lang_pair='zh-ja'):
@@ -170,12 +245,22 @@ class QwenTrainer:
             optim="adamw_torch"
         )
         
+        # 创建 BLEU 评估回调
+        bleu_callback = BLEUCallback(
+            val_df=val_df, 
+            tokenizer=self.tokenizer, 
+            lang_pair=lang_pair,
+            max_length=self.max_length,
+            sample_size=100  # 每 epoch 采样 100 条计算 BLEU
+        )
+        
         trainer = Trainer(
             model=model,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=val_ds,
             data_collator=DataCollatorForSeq2Seq(self.tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True),
+            callbacks=[bleu_callback]
         )
         
         print("开始训练 Qwen...")

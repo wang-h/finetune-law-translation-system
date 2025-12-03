@@ -167,10 +167,20 @@ def evaluate_model(args):
         
         references = all_references
         
-        # 计算 BLEU
-        bleu = sacrebleu.corpus_bleu(predictions, [references])
+        # 计算 BLEU - 根据目标语言选择合适的 tokenizer
+        # 日语用 'ja-mecab'，中文用 'zh'，英语用默认 '13a'
+        target_lang = args.lang_pair.split('-')[1]
+        if target_lang == 'ja':
+            bleu = sacrebleu.corpus_bleu(predictions, [references], tokenize='ja-mecab')
+            tokenizer_name = 'ja-mecab'
+        elif target_lang == 'zh':
+            bleu = sacrebleu.corpus_bleu(predictions, [references], tokenize='zh')
+            tokenizer_name = 'zh'
+        else:
+            bleu = sacrebleu.corpus_bleu(predictions, [references])
+            tokenizer_name = '13a'
         print(f"\n{'='*50}")
-        print(f"Final Test BLEU: {bleu.score:.2f}")
+        print(f"Final Test BLEU: {bleu.score:.2f} (tokenize={tokenizer_name})")
         print(f"{'='*50}")
 
 def main():

@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python evaluate.py --model_type mt5   --test_json datasets/my_test_en.json --model_path /home/wanghao/finetune-law-translation-system/checkpoints/mt5_zh2en/mt5/final --max_length 512 --batch_size 16

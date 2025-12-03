@@ -33,7 +33,7 @@ def main():
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=4, help='批次大小')
-    parser.add_argument('--epochs', type=int, default=5, help='训练轮数')
+    parser.add_argument('--epochs', type=int, default=10, help='训练轮数')
     parser.add_argument('--lr', type=float, default=5e-5, help='学习率')
     parser.add_argument('--output_dir', default='./checkpoints', help='输出目录')
     parser.add_argument('--enable_tensorboard', action='store_true', help='启用 TensorBoard 可视化')
@@ -106,7 +106,8 @@ def main():
             output_dir=f"{args.output_dir}/mt5",
             batch_size=args.batch_size,
             num_epochs=args.epochs,
-            learning_rate=args.lr
+            learning_rate=args.lr,
+            lang_pair=args.lang_pair
         )
 
 if __name__ == "__main__":

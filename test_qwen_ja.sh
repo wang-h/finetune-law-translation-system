@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python evaluate.py --model_type qwen --lang_pair zh-ja  --test_json datasets/my_test_ja.json --model_path /home/wanghao/finetune-law-translation-system/checkpoints/qwen3_4b_zh2ja_v2/qwen/checkpoint-801 --max_length 512 --batch_size 16
